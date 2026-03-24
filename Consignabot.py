@@ -117,7 +117,7 @@ async def on_message(message: discord.Message):
             "- list: Liste les séries pour ce canal\n"
             "- info [name]: Affiche les informations d'une série\n"
             "- delete [name]: Supprime une série\n"
-            "Le code source est disponible à https://github.com/sonia-auv/consignabot (voir avec SONIA pour les accès)"
+            "Le code source est disponible à https://github.com/sonia-auv/Consignabot (voir avec SONIA pour les accès)"
         )
         return
 
