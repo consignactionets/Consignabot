@@ -1,12 +1,12 @@
 # Consignabot
 
-Consignabot est un projet pour les clubs de robotiques de l'�TS. Il s'agit d'un bot Discord qui permet de g�rer les rappels d'�venements en lien avec le ramassage des canettes. Le bot permet aux membres du club de cr�er des rappels pour les �v�nements de ramassage de canettes, et de recevoir des notifications lorsque ces �v�nements approchent.
+Consignabot est un projet pour les clubs de robotiques de l'ÉTS. Il s'agit d'un bot Discord qui permet de gérer les rappels d'évenements en lien avec le ramassage des canettes. Le bot permet aux membres du club de créer des rappels pour les événements de ramassage de canettes, et de recevoir des notifications lorsque ces événements approchent.
 
-## Fonctionnalit�s
-- Cr�ation de rappels pour les �v�nements de ramassage de canettes
-- Notifications pour les rappels cr��s
-- Assignation de responsables pour les �v�nements
-- Affichage de la liste des rappels cr��s
+## Fonctionnalités
+- Création de rappels pour les événements de ramassage de canettes
+- Notifications pour les rappels créés
+- Assignation de responsables pour les événements
+- Affichage de la liste des rappels créés
 - Suppression de rappels
 
 ## Installation et utilisation
