@@ -1,22 +1,60 @@
 # Consignabot
 
-Consignabot est un projet pour les clubs de robotiques de l'ÉTS. Il s'agit d'un bot Discord qui permet de gérer les rappels d'évenements en lien avec le ramassage des canettes. Le bot permet aux membres du club de créer des rappels pour les événements de ramassage de canettes, et de recevoir des notifications lorsque ces événements approchent.
+Consignabot est un projet pour les clubs de robotiques de l'ï¿½TS. Il s'agit d'un bot Discord qui permet de gï¿½rer les rappels d'ï¿½venements en lien avec le ramassage des canettes. Le bot permet aux membres du club de crï¿½er des rappels pour les ï¿½vï¿½nements de ramassage de canettes, et de recevoir des notifications lorsque ces ï¿½vï¿½nements approchent.
 
-## Fonctionnalités
-- Création de rappels pour les événements de ramassage de canettes
-- Notifications pour les rappels créés
-- Assignation de responsables pour les événements
-- Affichage de la liste des rappels créés
+## Fonctionnalitï¿½s
+- Crï¿½ation de rappels pour les ï¿½vï¿½nements de ramassage de canettes
+- Notifications pour les rappels crï¿½ï¿½s
+- Assignation de responsables pour les ï¿½vï¿½nements
+- Affichage de la liste des rappels crï¿½ï¿½s
 - Suppression de rappels
 
 ## Installation et utilisation
-Clonez le dépôt GitHub du projet, ajoutez le token Discord et executez le fichier Consignabot.py:
+
+### MÃ©thode traditionnelle
+Clonez le dÃ©pÃ´t GitHub du projet, ajoutez le token Discord et exÃ©cutez le fichier Consignabot.py :
 ```
 git clone https://github.com/sonia-auv/Consignabot
 cd Consignabot
 echo "<your token>" > token.txt
 python Consignabot.py
 ```
+
+### MÃ©thode Docker (recommandÃ©e)
+Clonez le dÃ©pÃ´t et utilisez Docker :
+```
+git clone https://github.com/sonia-auv/Consignabot
+cd Consignabot
+```
+
+CrÃ©ez un fichier `.env` avec votre token Discord :
+```
+DISCORD_TOKEN=your_discord_bot_token_here
+```
+
+Puis lancez le bot avec Docker Compose :
+```
+docker-compose up -d
+```
+
+Ou avec Docker directement :
+```
+docker build -t consignabot .
+docker run -e DISCORD_TOKEN=your_token_here -v $(pwd)/data:/app/data consignabot
+```
+
+Le rÃ©pertoire `data` sera montÃ© en volume pour persister les donnÃ©es des sÃ©ries d'Ã©vÃ©nements.
+
+## CI/CD
+
+Ce projet utilise GitHub Actions pour automatiser la construction de l'image Docker :
+
+- **DÃ©clenchement** : Sur chaque push vers les branches `main` ou `master`, et sur les pull requests
+- **Construction** : L'image Docker est construite et testÃ©e automatiquement
+- **Publication** : L'image est publiÃ©e sur GitHub Container Registry (GHCR) pour les pushes directs
+- **Cache** : Utilise le cache GitHub Actions pour accÃ©lÃ©rer les builds
+
+L'image Docker construite peut Ãªtre trouvÃ©e dans l'onglet "Packages" de ce dÃ©pÃ´t GitHub.
 
 # Auteurs
 Ewan (Nawaque sur GitHub et Discord) (SONIA)

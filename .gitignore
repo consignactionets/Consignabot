@@ -366,3 +366,4 @@ token.txt
 data
 *.pyproj
 *.sln
+.env

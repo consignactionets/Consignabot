@@ -479,8 +479,16 @@ async def check_events():
             continue
 
 
-with open("token.txt", "r") as f:
-    token = f.read()
+import os
+
+# Read token from environment variable or file
+token = os.getenv("DISCORD_TOKEN")
+if not token:
+    try:
+        with open("token.txt", "r") as f:
+            token = f.read().strip()
+    except FileNotFoundError:
+        token = None
 
 if not token or not token.strip():
     print("Avertissement : token Discord introuvable. Le bot ne démarrera pas sans token.")
