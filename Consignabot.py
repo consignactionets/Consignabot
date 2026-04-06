@@ -1,6 +1,6 @@
 ﻿from pathlib import Path
 import discord
-from discord.ext import tasks
+from discord.ext import tasks, commands
 import datetime
 import re
 import asyncio
@@ -10,7 +10,7 @@ from typing import Optional
 intents = discord.Intents.default()
 intents.message_content = True
 
-client = discord.Client(intents=intents)
+client = commands.Bot(command_prefix="$", intents=intents)
 
 directory = Path("data")
 directory.mkdir(exist_ok=True)
@@ -63,234 +63,219 @@ async def on_ready():
         check_events.start()
 
 
-@client.event
-async def on_message(message: discord.Message):
-    if message.author == client.user:
+@client.command(name="help")
+async def help_command(ctx):
+    """Display help for available commands"""
+    await ctx.send(
+        "Utilisation : $[commande]\n"
+        "Commandes :\n"
+        "- create [repetition] [club] [name] [next_event]: Crée une série\n"
+        "next_event peut être au format date (YYYY-MM-DD) ou datetime (YYYY-MM-DDTHH:MM), les dates sans heure seront traitées comme 9:00 du matin.\n"
+        "repetition doit être l'un de NONE, DAILY, WEEKLY, BIWEEKLY, MONTHLY, YEARLY\n"
+        "- list: Liste les séries pour ce canal\n"
+        "- info [name]: Affiche les informations d'une série\n"
+        "- delete [name]: Supprime une série\n"
+        "Le code source est disponible à https://github.com/consignactionets/Consignabot"
+    )
+
+
+@client.command(name="create")
+async def create_command(ctx, repetition_token: str, club_token: str, name_token: str, *next_event_parts):
+    """Create a new event series"""
+    if not next_event_parts:
+        await ctx.send("Usage : $create [repetition] [club] [name] [next_event]")
         return
 
-    if message.content.startswith("$bac_plein"):
-        parts = message.content.split(" ", 1)
-        if len(parts) > 1:
+    next_event_raw = " ".join(next_event_parts).strip()
+    next_event_dt = _parse_iso_datetime(next_event_raw)
+    if next_event_dt is None:
+        await ctx.send("Date invalide ou manquante. Fournissez next_event au format ISO (YYYY-MM-DD ou YYYY-MM-DDTHH:MM).")
+        return
+
+    try:
+        series = EventSeries(
+            repetition=RepetitionType(repetition_token),
+            club=club_token,
+            responsible="",
+            name=name_token,
+            channel=ctx.channel.id,
+            next_event=next_event_dt,
+        )
+    except Exception as ex:
+        await ctx.send(f"Erreur lors de la création de la série : {ex}")
+        return
+
+    try:
+        series.save_to_file(channel_identifier=ctx.channel.id, directory=str(directory), overwrite=False)
+    except FileExistsError:
+        prompt_text = (f'Une série d\'événements avec le nom "{series.name}" existe déjà dans ce canal.\n'
+                       "Réagissez avec ✅ pour remplacer, ❌ pour annuler (30s).")
+        try:
+            prompt = await ctx.send(prompt_text)
+            await prompt.add_reaction("✅")
+            await prompt.add_reaction("❌")
+        except Exception:
+            await ctx.send(f'Une série d\'événements avec le nom "{series.name}" existe déjà dans ce canal.')
+            return
+
+        def check(reaction: discord.Reaction, user: discord.User):
+            return user == ctx.author and reaction.message.id == prompt.id and str(reaction.emoji) in ("✅", "❌")
+
+        try:
+            reaction, user = await client.wait_for("reaction_add", timeout=30.0, check=check)
+        except asyncio.TimeoutError:
             try:
-                await message.delete()
+                await prompt.edit(content="Annulé : pas de réaction dans le temps imparti.")
             except Exception:
                 pass
+            return
 
-            number_text = parts[1].strip()
-            now = datetime.datetime.now()
-            series_name = f"Bac_{number_text}_plein_{now.replace(microsecond=0).isoformat()}"
+        if str(reaction.emoji) == "✅":
             try:
-                series = EventSeries(
-                    repetition=RepetitionType.NONE,
-                    club="@everyone",
-                    responsible="",
-                    name=series_name,
-                    channel=message.channel.id,
-                    next_event=now,
-                )
+                series.save_to_file(channel_identifier=ctx.channel.id, directory=str(directory), overwrite=True)
+                try:
+                    await prompt.edit(content=f'Série "{series.name}" remplacée.')
+                except Exception:
+                    pass
             except Exception as ex:
-                await message.channel.send(f"Erreur lors de la création de la série : {ex}")
+                try:
+                    await prompt.edit(content=f'Échec du remplacement : {ex}')
+                except Exception:
+                    pass
                 return
-
+        else:
             try:
-                series.save_to_file(channel_identifier=message.channel.id, directory=str(directory), overwrite=False)
-            except FileExistsError:
-                await message.channel.send(f'Une série d\'événements avec le nom "{series.name}" existe déjà dans ce canal.')
-                return
-            except Exception as ex:
-                await message.channel.send(f"Échec de l'enregistrement de la série : {ex}")
-                return
-        return
-
-    if not message.content.startswith("$consignabot"):
-        return
-
-    parts = message.content.split(" ")
-
-    if len(parts) == 1 or parts[1] == "help":
-        await message.channel.send(
-            "Utilisation : $consignabot [commande]\n"
-            "Commandes :\n"
-            "- create [repetition] [club] [name] [next_event]: Crée une série\n"
-            "next_event peut être au format date (YYYY-MM-DD) ou datetime (YYYY-MM-DDTHH:MM), les dates sans heure seront traitées comme 9:00 du matin.\n"
-            "repetition doit être l'un de NONE, DAILY, WEEKLY, BIWEEKLY, MONTHLY, YEARLY\n"
-            "- list: Liste les séries pour ce canal\n"
-            "- info [name]: Affiche les informations d'une série\n"
-            "- delete [name]: Supprime une série\n"
-            "Le code source est disponible à https://github.com/sonia-auv/Consignabot (voir avec SONIA pour les accès)"
-        )
-        return
-
-    cmd = parts[1].lower()
-
-    if cmd == "create":
-        if len(parts) < 6:
-            await message.channel.send("Usage : $consignabot create [repetition] [club] [name] [next_event]")
-            return
-
-        repetition_token = parts[2]
-        club_token = parts[3]
-        name_token = parts[4]
-        next_event_raw = " ".join(parts[5:]).strip()
-        next_event_dt = _parse_iso_datetime(next_event_raw)
-        if next_event_dt is None:
-            await message.channel.send("Date invalide ou manquante. Fournissez next_event au format ISO (YYYY-MM-DD ou YYYY-MM-DDTHH:MM).")
-            return
-
-        try:
-            series = EventSeries(
-                repetition=RepetitionType(repetition_token),
-                club=club_token,
-                responsible="",
-                name=name_token,
-                channel=message.channel.id,
-                next_event=next_event_dt,
-            )
-        except Exception as ex:
-            await message.channel.send(f"Erreur lors de la création de la série : {ex}")
-            return
-
-        try:
-            series.save_to_file(channel_identifier=message.channel.id, directory=str(directory), overwrite=False)
-        except FileExistsError:
-            prompt_text = (f'Une série d\'événements avec le nom "{series.name}" existe déjà dans ce canal.\n'
-                           "Réagissez avec ✅ pour remplacer, ❌ pour annuler (30s).")
-            try:
-                prompt = await message.channel.send(prompt_text)
-                await prompt.add_reaction("✅")
-                await prompt.add_reaction("❌")
+                await prompt.edit(content=f'Remplacement annulé pour la série "{series.name}".')
             except Exception:
-                await message.channel.send(f'Une série d\'événements avec le nom "{series.name}" existe déjà dans ce canal.')
-                return
-
-            def check(reaction: discord.Reaction, user: discord.User):
-                return user == message.author and reaction.message.id == prompt.id and str(reaction.emoji) in ("✅", "❌")
-
-            try:
-                reaction, user = await client.wait_for("reaction_add", timeout=30.0, check=check)
-            except asyncio.TimeoutError:
-                try:
-                    await prompt.edit(content="Annulé : pas de réaction dans le temps imparti.")
-                except Exception:
-                    pass
-                return
-
-            if str(reaction.emoji) == "✅":
-                try:
-                    series.save_to_file(channel_identifier=message.channel.id, directory=str(directory), overwrite=True)
-                    try:
-                        await prompt.edit(content=f'Série "{series.name}" remplacée.')
-                    except Exception:
-                        pass
-                except Exception as ex:
-                    try:
-                        await prompt.edit(content=f'Échec du remplacement : {ex}')
-                    except Exception:
-                        pass
-                    return
-            else:
-                try:
-                    await prompt.edit(content=f'Remplacement annulé pour la série "{series.name}".')
-                except Exception:
-                    pass
-            return
-
-        except Exception as ex:
-            await message.channel.send(f"Échec de l'enregistrement de la série : {ex}")
-            return
-
-        next_event_display = series.next_event.replace(microsecond=0).isoformat(sep=" ")
-        embed = discord.Embed(
-            title="Série d'événements créée",
-            description=f"Pour {message.channel.mention}",
-            color=discord.Color.green(),
-            timestamp=datetime.datetime.now(),
-        )
-        embed.add_field(name="Nom", value=series.name or "—", inline=False)
-        embed.add_field(name="Club", value=series.club or "—", inline=True)
-        embed.add_field(name="Répétition", value=getattr(series.repetition, "value", str(series.repetition)), inline=True)
-        embed.add_field(name="Responsable", value=series.responsible or "—", inline=False)
-        embed.add_field(name="Prochain évènement", value=next_event_display, inline=False)
-        embed.set_footer(text="Consignabot")
-        await message.channel.send(embed=embed)
+                pass
         return
 
-    if cmd == "list":
-        channel_prefix = f"{message.channel.id}."
-        files = [p for p in directory.iterdir() if p.is_file() and p.name.endswith(".json") and p.name.startswith(channel_prefix)]
-        if not files:
-            await message.channel.send("Aucune série d'événements trouvée pour ce canal.")
-            return
-
-        embed = discord.Embed(
-            title="Séries",
-            description=f"Pour {message.channel.mention}",
-            color=discord.Color.blue(),
-            timestamp=datetime.datetime.now(),
-        )
-
-        for fp in files:
-            try:
-                series = EventSeries.load_from_file(str(fp))
-            except Exception as ex:
-                err = discord.Embed(title="Impossible de lire la série", description=f"Fichier : {fp.name}", color=discord.Color.red())
-                err.add_field(name="Erreur", value=str(ex), inline=False)
-                await message.channel.send(embed=err)
-                continue
-
-            ne = series.next_event.replace(microsecond=0).isoformat(sep=" ")
-            embed.add_field(name="Nom", value=series.name or "—", inline=True)
-            embed.add_field(name="Club", value=series.club or "—", inline=True)
-            embed.add_field(name="Répétition", value=str(series.repetition.value), inline=True)
-            embed.add_field(name="Prochain évènement", value=ne, inline=True)
-            embed.add_field(name="\u200B", value="\u200B", inline=False)
-
-        embed.set_footer(text="Consignabot")
-        await message.channel.send(embed=embed)
+    except Exception as ex:
+        await ctx.send(f"Échec de l'enregistrement de la série : {ex}")
         return
 
-    if cmd == "delete":
-        if len(parts) != 3:
-            await message.channel.send("Usage : $consignabot delete [name]")
-            return
-        name_to_delete = parts[2]
-        path = directory / f"{message.channel.id}.{name_to_delete}.json"
-        if not path.exists():
-            await message.channel.send(f'Aucune série trouvée avec le nom "{name_to_delete}".')
-            return
-        path.unlink()
-        await message.channel.send(f'Série "{name_to_delete}" supprimée.')
+    next_event_display = series.next_event.replace(microsecond=0).isoformat(sep=" ")
+    embed = discord.Embed(
+        title="Série d'événements créée",
+        description=f"Pour {ctx.channel.mention}",
+        color=discord.Color.green(),
+        timestamp=datetime.datetime.now(),
+    )
+    embed.add_field(name="Nom", value=series.name or "—", inline=False)
+    embed.add_field(name="Club", value=series.club or "—", inline=True)
+    embed.add_field(name="Répétition", value=getattr(series.repetition, "value", str(series.repetition)), inline=True)
+    embed.add_field(name="Responsable", value=series.responsible or "—", inline=False)
+    embed.add_field(name="Prochain évènement", value=next_event_display, inline=False)
+    embed.set_footer(text="Consignabot")
+    await ctx.send(embed=embed)
+
+
+@client.command(name="list")
+async def list_command(ctx):
+    """List all event series for this channel"""
+    channel_prefix = f"{ctx.channel.id}."
+    files = [p for p in directory.iterdir() if p.is_file() and p.name.endswith(".json") and p.name.startswith(channel_prefix)]
+    if not files:
+        await ctx.send("Aucune série d'événements trouvée pour ce canal.")
         return
 
-    if cmd == "info":
-        if len(parts) != 3:
-            await message.channel.send("Usage : $consignabot info [name]")
-            return
-        name_to_info = parts[2]
-        path = directory / f"{message.channel.id}.{name_to_info}.json"
-        if not path.exists():
-            await message.channel.send(f'Aucune série trouvée avec le nom "{name_to_info}".')
-            return
+    embed = discord.Embed(
+        title="Séries",
+        description=f"Pour {ctx.channel.mention}",
+        color=discord.Color.blue(),
+        timestamp=datetime.datetime.now(),
+    )
+
+    for fp in files:
         try:
-            series = EventSeries.load_from_file(str(path))
+            series = EventSeries.load_from_file(str(fp))
         except Exception as ex:
-            await message.channel.send(f"Erreur lors de la lecture de la série : {ex}")
-            return
+            err = discord.Embed(title="Impossible de lire la série", description=f"Fichier : {fp.name}", color=discord.Color.red())
+            err.add_field(name="Erreur", value=str(ex), inline=False)
+            await ctx.send(embed=err)
+            continue
 
         ne = series.next_event.replace(microsecond=0).isoformat(sep=" ")
-        embed = discord.Embed(
-            title=f"Série d'événements : {series.name}",
-            description=f"Pour {message.channel.mention}",
-            color=discord.Color.purple(),
-            timestamp=datetime.datetime.now(),
-        )
         embed.add_field(name="Nom", value=series.name or "—", inline=True)
         embed.add_field(name="Club", value=series.club or "—", inline=True)
         embed.add_field(name="Répétition", value=str(series.repetition.value), inline=True)
-        embed.add_field(name="Responsable", value=series.responsible or "—", inline=True)
         embed.add_field(name="Prochain évènement", value=ne, inline=True)
-        embed.set_footer(text="Consignabot")
-        await message.channel.send(embed=embed)
+        embed.add_field(name="\u200B", value="\u200B", inline=False)
+
+    embed.set_footer(text="Consignabot")
+    await ctx.send(embed=embed)
+
+
+@client.command(name="delete")
+async def delete_command(ctx, name_to_delete: str):
+    """Delete an event series by name"""
+    path = directory / f"{ctx.channel.id}.{name_to_delete}.json"
+    if not path.exists():
+        await ctx.send(f'Aucune série trouvée avec le nom "{name_to_delete}".')
+        return
+    path.unlink()
+    await ctx.send(f'Série "{name_to_delete}" supprimée.')
+
+
+@client.command(name="info")
+async def info_command(ctx, name_to_info: str):
+    """Display information about an event series"""
+    path = directory / f"{ctx.channel.id}.{name_to_info}.json"
+    if not path.exists():
+        await ctx.send(f'Aucune série trouvée avec le nom "{name_to_info}".')
+        return
+    try:
+        series = EventSeries.load_from_file(str(path))
+    except Exception as ex:
+        await ctx.send(f"Erreur lors de la lecture de la série : {ex}")
+        return
+
+    ne = series.next_event.replace(microsecond=0).isoformat(sep=" ")
+    embed = discord.Embed(
+        title=f"Série d'événements : {series.name}",
+        description=f"Pour {ctx.channel.mention}",
+        color=discord.Color.purple(),
+        timestamp=datetime.datetime.now(),
+    )
+    embed.add_field(name="Nom", value=series.name or "—", inline=True)
+    embed.add_field(name="Club", value=series.club or "—", inline=True)
+    embed.add_field(name="Répétition", value=str(series.repetition.value), inline=True)
+    embed.add_field(name="Responsable", value=series.responsible or "—", inline=True)
+    embed.add_field(name="Prochain évènement", value=ne, inline=True)
+    embed.set_footer(text="Consignabot")
+    await ctx.send(embed=embed)
+
+
+@client.command(name="bac_plein")
+async def bac_plein_command(ctx, number_text: str):
+    """Create a bac_plein event (full trash)"""
+    try:
+        await ctx.message.delete()
+    except Exception:
+        pass
+
+    now = datetime.datetime.now()
+    series_name = f"Bac_{number_text}_plein_{now.replace(microsecond=0).isoformat()}"
+    try:
+        series = EventSeries(
+            repetition=RepetitionType.NONE,
+            club="@everyone",
+            responsible="",
+            name=series_name,
+            channel=ctx.channel.id,
+            next_event=now,
+        )
+    except Exception as ex:
+        await ctx.send(f"Erreur lors de la création de la série : {ex}")
+        return
+
+    try:
+        series.save_to_file(channel_identifier=ctx.channel.id, directory=str(directory), overwrite=False)
+    except FileExistsError:
+        await ctx.send(f'Une série d\'événements avec le nom "{series.name}" existe déjà dans ce canal.')
+        return
+    except Exception as ex:
+        await ctx.send(f"Échec de l'enregistrement de la série : {ex}")
         return
 
 
