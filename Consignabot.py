@@ -6,6 +6,9 @@ import re
 import asyncio
 from event_series import EventSeries, RepetitionType
 from typing import Optional
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 intents = interactions.Intents.DEFAULT | interactions.Intents.MESSAGE_CONTENT
 client = interactions.Client(intents=intents)
@@ -77,9 +80,15 @@ def _add_responsible(existing: str, user_id: int) -> str:
 
 @interactions.listen()
 async def on_ready():
+    async def monitor():
+        while True:
+            logging.debug("Latency: %s", client.latency)
+            await asyncio.sleep(5)
+
     check_events.start()
     keep_alive.start()
-    print(f"Connecté en tant que {client.user}")
+    monitoring_task = asyncio.create_task(monitor())
+    logging.info(f"Connecté en tant que {client.user}")
 
 
 @interactions.slash_command(name="help", description="Affiche l'aide de Consignabot")
@@ -470,7 +479,7 @@ async def check_events():
 
 @interactions.Task.create(interactions.IntervalTrigger(seconds=15))
 async def keep_alive():
-    print("Keep-alive check: bot is running.")
+    logging.info("Keep-alive check: bot is running.")
 
 
 # Read token from environment variable or file
@@ -483,7 +492,7 @@ if not token:
         token = None
 
 if not token or not token.strip():
-    print("Avertissement : token Discord introuvable. Le bot ne démarrera pas sans token.")
+    logging.warning("Avertissement : token Discord introuvable. Le bot ne démarrera pas sans token.")
 else:
     client.start(token)
-    print("Le bot s'est arrêté.")
+    logging.info("Le bot s'est arrêté.")
