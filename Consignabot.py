@@ -78,6 +78,7 @@ def _add_responsible(existing: str, user_id: int) -> str:
 @interactions.listen()
 async def on_ready():
     check_events.start()
+    keep_alive.start()
     print(f"Connecté en tant que {client.user}")
 
 
@@ -465,6 +466,11 @@ async def check_events():
 
         except Exception:
             continue
+
+
+@interactions.Task.create(interactions.IntervalTrigger(seconds=15))
+async def keep_alive():
+    print("Keep-alive check: bot is running.")
 
 
 # Read token from environment variable or file
