@@ -83,6 +83,7 @@ async def on_ready():
 
 @interactions.slash_command(name="help", description="Affiche l'aide de Consignabot")
 async def help_command(interaction: interactions.SlashContext):
+    await interaction.defer()
     await interaction.send(
         "Utilisation : /[commande]\n"
         "Commandes :\n"
@@ -109,6 +110,7 @@ async def create_command(
     name: str,
     next_event: str,
 ):
+    await interaction.defer()
     next_event_dt = _parse_iso_datetime(next_event)
     if next_event_dt is None:
         await interaction.send("Date invalide ou manquante. Fournissez next_event au format ISO (YYYY-MM-DD ou YYYY-MM-DDTHH:MM).")
@@ -185,6 +187,7 @@ async def create_command(
 
 @interactions.slash_command(name="list", description="Liste les séries pour ce canal")
 async def list_command(interaction: interactions.SlashContext):
+    await interaction.defer()
     channel_prefix = f"{interaction.channel.id}."
     files = [p for p in directory.iterdir() if p.is_file() and p.name.endswith(".json") and p.name.startswith(channel_prefix)]
     if not files:
@@ -221,6 +224,7 @@ async def list_command(interaction: interactions.SlashContext):
 @interactions.slash_command(name="delete", description="Supprime une série")
 @interactions.slash_option(name="name_to_delete", description="Nom de la série à supprimer", opt_type=interactions.OptionType.STRING, required=True)
 async def delete_command(interaction: interactions.SlashContext, name_to_delete: str):
+    await interaction.defer()
     path = directory / f"{interaction.channel.id}.{name_to_delete}.json"
     if not path.exists():
         await interaction.send(f'Aucune série trouvée avec le nom "{name_to_delete}".')
@@ -232,6 +236,7 @@ async def delete_command(interaction: interactions.SlashContext, name_to_delete:
 @interactions.slash_command(name="info", description="Affiche les informations d'une série")
 @interactions.slash_option(name="name_to_info", description="Nom de la série", opt_type=interactions.OptionType.STRING, required=True)
 async def info_command(interaction: interactions.SlashContext, name_to_info: str):
+    await interaction.defer()
     path = directory / f"{interaction.channel.id}.{name_to_info}.json"
     if not path.exists():
         await interaction.send(f'Aucune série trouvée avec le nom "{name_to_info}".')
@@ -253,6 +258,7 @@ async def info_command(interaction: interactions.SlashContext, name_to_info: str
 @interactions.slash_command(name="bac_plein", description="Crée une série Bac plein")
 @interactions.slash_option(name="number_text", description="Numéro du bac", opt_type=interactions.OptionType.STRING, required=True)
 async def bac_plein_command(interaction: interactions.SlashContext, number_text: str):
+    await interaction.defer()
     now = datetime.datetime.now()
     series_name = f"Bac_{number_text}_plein_{now.replace(microsecond=0).isoformat()}"
     try:
