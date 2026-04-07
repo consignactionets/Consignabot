@@ -14,7 +14,7 @@ Consignabot est un projet pour les clubs de robotiques de l'ÉTS. Il s'agit d'un
 ### Méthode traditionnelle
 Clonez le dépôt GitHub du projet, ajoutez le token Discord et exécutez le fichier Consignabot.py :
 ```
-git clone https://github.com/sonia-auv/Consignabot
+git clone https://github.com/consignactionets/Consignabot
 cd Consignabot
 echo "<your token>" > token.txt
 python Consignabot.py
@@ -23,7 +23,7 @@ python Consignabot.py
 ### Méthode Docker (recommandée)
 Clonez le dépôt et utilisez Docker :
 ```
-git clone https://github.com/sonia-auv/Consignabot
+git clone https://github.com/consignactionets/Consignabot
 cd Consignabot
 ```
 
@@ -49,7 +49,7 @@ Le répertoire `data` sera monté en volume pour persister les données des sér
 
 Ce projet utilise GitHub Actions pour automatiser la construction de l'image Docker :
 
-- **Déclenchement** : Sur chaque push vers les branches `main` ou `master`, et sur les pull requests
+- **Déclenchement** : Sur chaque push vers la branche `main`, et sur les pull requests
 - **Construction** : L'image Docker est construite et testée automatiquement
 - **Publication** : L'image est publiée sur GitHub Container Registry (GHCR) pour les pushes directs
 - **Cache** : Utilise le cache GitHub Actions pour accélérer les builds
