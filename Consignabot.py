@@ -11,7 +11,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 intents = interactions.Intents.DEFAULT | interactions.Intents.MESSAGE_CONTENT
-client = interactions.Client(intents=intents)
+client = interactions.Client(intents=intents, auto_defer=True)
 
 directory = Path("data")
 directory.mkdir(exist_ok=True)
